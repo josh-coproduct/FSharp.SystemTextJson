@@ -180,7 +180,93 @@ module NonStruct =
               sd = Some(ValueSome 4) },
             actual
         )
+        
+    [<AllowNullLiteral>]
+    type AllowNullLiteralClass (prop:int) =
+        member val prop = prop with get,set
+        
+    type NonNullableClass (prop:int) =
+        member val prop = prop with get,set
+        
+    type NullableFieldRecord =
+        { t0: AllowNullLiteralClass option }
+        
+    type NonNullableFieldRecord =
+        { t1: NonNullableClass option }
+        
+    [<Fact>]
+    let ``deserialize non-nullable skippable union field`` () =
+        let options =
+            JsonFSharpOptions
+                .Default()
+                .WithSkippableOptionFields()
+                .ToJsonSerializerOptions()
 
+        let actual =
+            JsonSerializer.Deserialize<NonNullableFieldRecord>("""{"t1":{"prop": 0}}""", options)
+            
+        Assert.True( actual.t1.IsSome )
+        Assert.Equal( 0, actual.t1.Value.prop)
+        
+        let actual =
+            JsonSerializer.Deserialize<NonNullableFieldRecord>("""{"t1": null}""", options)
+            
+        Assert.True( actual.t1.IsNone )
+        
+        let actual =
+            JsonSerializer.Deserialize<NonNullableFieldRecord>("""{}""", options)
+            
+        Assert.True( actual.t1.IsNone )
+        
+    [<Fact>]
+    let ``deserialize nullable skippable union field`` () =
+        let options =
+            JsonFSharpOptions
+                .Default()
+                .WithSkippableOptionFields()
+                .ToJsonSerializerOptions()
+        let actual =
+            JsonSerializer.Deserialize<NullableFieldRecord>("""{"t0":{"prop": 0}}""", options)
+            
+        Assert.True( actual.t0.IsSome )
+        Assert.Equal( 0, actual.t0.Value.prop)
+        
+        let actual =
+            JsonSerializer.Deserialize<NullableFieldRecord>("""{"t0": null}""", options)
+            
+        Assert.True( actual.t0.IsSome )
+        Assert.Equal( null, actual.t0.Value)
+        
+        let actual =
+            JsonSerializer.Deserialize<NullableFieldRecord>("""{}""", options)
+            
+        Assert.True( actual.t0.IsNone )
+        
+    [<Fact>]
+    let ``Some(null) round trip`` () =
+        let options =
+            JsonFSharpOptions
+                .Default()
+                .WithSkippableOptionFields()
+                .ToJsonSerializerOptions()
+                
+        let expected = {
+            t0 = Some null
+        }
+        
+        let json = JsonSerializer.Serialize(expected, options)
+        let actual = JsonSerializer.Deserialize<NullableFieldRecord>(json, options)
+            
+        Assert.Equal( expected, actual)
+    
+        let expected = {
+            t0 = None
+        }                
+        let json = JsonSerializer.Serialize(expected, options)
+        let actual = JsonSerializer.Deserialize<NullableFieldRecord>(json, options)
+            
+        Assert.Equal( expected, actual)
+    
     [<Fact>]
     let ``serialize skippable union field`` () =
         let options =

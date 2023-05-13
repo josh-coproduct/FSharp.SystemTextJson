@@ -47,6 +47,14 @@ type private RecordField
         else
             id
 
+    let getSkippableNone () =
+        if isSkippableType then
+            let case = FSharpType.GetUnionCases(p.PropertyType)[0]
+            FSharpValue.MakeUnion(case, [||])
+        else
+            failwith "Only valid on skippable types"
+
+        
     member _.Names = names
 
     member _.Type = p.PropertyType
@@ -68,11 +76,17 @@ type private RecordField
         | ValueNone -> i
 
     member _.Deserialize(reader: byref<Utf8JsonReader>, recordType: Type) =
-        if reader.TokenType = JsonTokenType.Null && not isSkippableType then
-            match nullValue with
-            | ValueSome v -> v
-            | ValueNone ->
-                failf "%s.%s was expected to be of type %s, but was null." recordType.Name names[0] p.PropertyType.Name
+        if reader.TokenType = JsonTokenType.Null then
+           if isSkippableType then
+                //Check to see if the wrapped type is nullable, or if this property needs to be skipped
+                match tryGetNullValue fsOptions deserializeType with
+                | ValueSome v -> wrapDeserialized v
+                | ValueNone -> getSkippableNone ()
+           else
+                match nullValue with
+                | ValueSome v -> v
+                | ValueNone ->
+                    failf "%s.%s was expected to be of type %s, but was null." recordType.Name names[0] p.PropertyType.Name
         else
             JsonSerializer.Deserialize(&reader, deserializeType, options)
             |> wrapDeserialized

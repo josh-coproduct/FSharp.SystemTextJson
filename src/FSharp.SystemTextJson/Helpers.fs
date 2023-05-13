@@ -37,6 +37,9 @@ let isNullableUnion (ty: Type) =
         let x = (x :?> CompilationRepresentationAttribute)
         x.Flags.HasFlag(CompilationRepresentationFlags.UseNullAsTrueValue)
     )
+    
+let allowsNullLiteral (ty: Type) =
+    ty.GetCustomAttributes(typeof<AllowNullLiteralAttribute>, false).Length > 0
 
 let isSkippableType (fsOptions: JsonFSharpOptionsRecord) (ty: Type) =
     if ty.IsGenericType then
@@ -103,6 +106,7 @@ let rec tryGetNullValue (fsOptions: JsonFSharpOptionsRecord) (ty: Type) : obj vo
         && not (FSharpType.IsTuple(ty))
     then
         ValueSome(if ty.IsValueType then Activator.CreateInstance(ty) else null)
+    elif allowsNullLiteral ty then ValueSome null
     else
         match tryGetUnwrappedSingleCaseField (fsOptions, ty) with
         | true, _, field ->
